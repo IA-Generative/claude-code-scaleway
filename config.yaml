@@ -54,6 +54,11 @@ litellm_settings:
   # thinking...) au lieu de renvoyer une 400. Indispensable ici.
   drop_params: true
 
+  # Écrête max_tokens à la limite Scaleway (16384) côté serveur — voir
+  # custom_callbacks.py. Certains appels internes de Claude Code ignorent
+  # CLAUDE_CODE_MAX_OUTPUT_TOKENS et partiraient sinon en 400.
+  callbacks: custom_callbacks.proxy_handler_instance
+
   # LiteLLM ≥ 1.9x route les requêtes /v1/messages des modèles `openai/`
   # vers /v1/responses. Scaleway n'implémente pas cette route (422
   # "ROUTE NOT SUPPORTED") : on force le pont chat/completions.
