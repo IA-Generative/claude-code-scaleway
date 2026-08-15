@@ -1,0 +1,47 @@
+# LiteLLM — expose un modèle Scaleway (API OpenAI) au format Anthropic
+# pour Claude Code.
+#
+#   Claude Code ──/v1/messages (Anthropic)──▶ LiteLLM ──/chat/completions (OpenAI)──▶ Scaleway
+#
+# Lancement :  make proxy   (ou : litellm --config config.yaml --port 4000)
+
+model_list:
+  # ── Modèle principal ────────────────────────────────────────────────
+  # Vérifie l'ID exact avec `make models` avant de compter dessus.
+  - model_name: glm-5.2
+    litellm_params:
+      model: openai/glm-5.2            # préfixe openai/ = protocole du backend
+      api_base: https://api.scaleway.ai/v1
+      api_key: os.environ/SCW_SECRET_KEY
+    model_info:
+      supports_function_calling: true
+
+  # ── Alias ───────────────────────────────────────────────────────────
+  # Claude Code réclame des noms de modèles Claude par défaut. Sans ces
+  # alias, tu récupères des erreurs "model not found" sur les tâches de
+  # fond même si --model est correct.
+  - model_name: claude-sonnet-4-5
+    litellm_params:
+      model: openai/glm-5.2
+      api_base: https://api.scaleway.ai/v1
+      api_key: os.environ/SCW_SECRET_KEY
+
+  # Modèle rapide (résumés, titres de conversation). Bascule-le sur un
+  # modèle moins cher — ex. openai/gpt-oss-120b — pour alléger la facture.
+  - model_name: claude-haiku-4-5
+    litellm_params:
+      model: openai/glm-5.2
+      api_base: https://api.scaleway.ai/v1
+      api_key: os.environ/SCW_SECRET_KEY
+
+litellm_settings:
+  # Ignore les paramètres Anthropic sans équivalent OpenAI (cache_control,
+  # thinking...) au lieu de renvoyer une 400. Indispensable ici.
+  drop_params: true
+
+  # Passe à true pour voir les requêtes traduites dans la console.
+  set_verbose: false
+
+general_settings:
+  # Doit correspondre à PROXY_KEY dans .env, et donc à ANTHROPIC_AUTH_TOKEN.
+  master_key: os.environ/PROXY_KEY

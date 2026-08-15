@@ -1,0 +1,23 @@
+# Secrets — ne jamais committer
+.env
+*.key
+*.pem
+
+# LiteLLM
+litellm.log
+*.db
+.litellm_cache/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# OS / éditeurs
+.DS_Store
+.idea/
+*.swp
+
+# Claude Code (config locale de session)
+.claude/settings.local.json
