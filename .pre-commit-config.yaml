@@ -1,0 +1,14 @@
+# Garde anti-secret LOCAL et BLOQUANT : gitleaks refuse tout commit
+# contenant un secret (code de sortie ≠ 0 → commit avorté).
+#
+# Pourquoi le hook pre-commit et non l'action GitHub gitleaks-action@v2 :
+# cette dernière exige une licence payante pour les organisations et échoue
+# sans rien scanner. Le hook local est gratuit, hors ligne, et bloquant.
+#
+# Installation :  pre-commit install
+# Test manuel  :  pre-commit run gitleaks --all-files
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks
