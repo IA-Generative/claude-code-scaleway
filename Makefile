@@ -1,4 +1,4 @@
-.PHONY: help install proxy up down logs check models tools env vscode
+.PHONY: help install proxy up down logs check models tools env vscode shell repair
 .DEFAULT_GOAL := help
 
 -include .env
@@ -35,11 +35,18 @@ models:  ## Liste les modèles servis par Scaleway
 tools:  ## Teste le tool calling (le test déterminant)
 	@./scripts/check.sh tools
 
-vscode:  ## Ouvre une fenêtre VS Code isolée (make vscode DIR=~/dev/projet)
+shell:  ## Sous-shell GLM, rien n'est ecrit (make shell DIR=~/dev/projet)
+	@./scripts/shell.sh $(DIR)
+
+vscode:  ## Fenetre VS Code sur GLM (make vscode DIR=~/dev/projet)
 	@./scripts/vscode.sh $(DIR)
 
-env:  ## Affiche les exports à coller pour lancer Claude Code
-	@echo 'export ANTHROPIC_BASE_URL=http://0.0.0.0:$(PROXY_PORT)'
+repair:  ## Repare Claude Code disparu de VS Code (make repair FIX=--fix)
+	@./scripts/repair-vscode.sh $(FIX)
+
+env:  ## Exports pour Claude Code - usage : eval "$$(make -s env)"
+	@echo 'export ANTHROPIC_BASE_URL=http://127.0.0.1:$(PROXY_PORT)'
 	@echo 'export ANTHROPIC_AUTH_TOKEN=$(PROXY_KEY)'
 	@echo 'export ANTHROPIC_API_KEY=""'
-	@echo '# puis :  claude --model $(MODEL)'
+	@echo 'export ANTHROPIC_MODEL=$(MODEL)'
+	@echo 'puis :  claude --model $(MODEL)' >&2

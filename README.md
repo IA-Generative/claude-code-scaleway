@@ -15,7 +15,7 @@ Claude Code ──/v1/messages (Anthropic)──▶ LiteLLM :4000 ──/chat/co
 
 ```bash
 cp .env.example .env      # renseigne SCW_SECRET_KEY
-make install              # pip install 'litellm[proxy]'
+make install              # pip install litellm[proxy]
 make models               # confirme l'identifiant réel du modèle
 make tools                # LE test qui compte — voir plus bas
 make proxy                # lance le proxy (garder ce terminal ouvert)
@@ -28,15 +28,27 @@ eval "$(make -s env)"
 claude --model glm-5.2
 ```
 
-`make env` affiche simplement les trois exports à appliquer :
-
-```bash
-export ANTHROPIC_BASE_URL=http://0.0.0.0:4000
-export ANTHROPIC_AUTH_TOKEN=sk-local-dev-1234
-export ANTHROPIC_API_KEY=""        # neutralise une éventuelle vraie clé Anthropic
-```
+`make env` n'émet que des lignes `export`, donc `eval` reste sûr — les
+messages d'aide partent sur stderr.
 
 Variante Docker, si tu préfères ne rien installer : `make up`, puis `make logs` / `make down`.
+
+### Le fichier `.env`
+
+Quatre variables, **sans commentaires ni guillemets** :
+
+| Variable | Rôle |
+|---|---|
+| `SCW_SECRET_KEY` | Clé secrète Scaleway (Console → IAM → Clés API), projet ayant accès aux Generative APIs |
+| `MODEL` | Identifiant du modèle tel que servi par Scaleway — `make models` fait foi |
+| `PROXY_KEY` | Clé arbitraire protégeant le proxy local, devient `ANTHROPIC_AUTH_TOKEN` |
+| `PROXY_PORT` | Port d'écoute de LiteLLM |
+
+Le `.env` est délibérément dépourvu de commentaires : une apostrophe ou un
+backtick dans un commentaire casse le quoting selon le shell et selon
+l'outil qui lit le fichier. `scripts/lib.sh` découpe chaque ligne au lieu de
+sourcer le fichier, donc rien n'y est jamais interprété — mais autant ne pas
+réintroduire le piège en éditant.
 
 ---
 
@@ -60,27 +72,55 @@ appel direct, tool calling, traduction Anthropic, `count_tokens`).
 
 ---
 
-## Fenêtre VS Code dédiée
+## Basculer un projet sur GLM
+
+Deux façons, selon que tu travailles au terminal ou dans VS Code.
+
+### Au terminal — le plus simple
 
 ```bash
-make vscode                        # ouvre le dossier courant
-make vscode DIR=~/dev/mon-projet   # ouvre un autre projet
+make shell                          # shell GLM dans le repo
+make shell DIR=~/dev/mon-projet     # shell GLM dans un projet
 ```
 
-Une fenêtre s'ouvre sur GLM, **sans rien changer à tes autres fenêtres VS Code
-ni à ton CLI `claude`**, qui restent sur ton compte Anthropic.
+Un sous-shell s'ouvre avec l'environnement pointé sur le proxy et un prompt
+`[glm-5.2]` pour ne pas s'y tromper. Tu tapes `claude`, tu travailles, tu fais
+`exit`. Rien n'est écrit nulle part, rien à défaire.
 
-Le script vérifie que le proxy tourne (et propose de le démarrer), puis isole
-la session sur trois plans :
+### Dans VS Code
 
-| Mécanisme | Rôle |
-|---|---|
-| `.claude/settings.local.json` dans le projet ciblé | Bascule Claude Code sur le proxy, pour ce projet uniquement |
-| `--profile Scaleway-GLM` | Extensions et réglages VS Code séparés |
-| `--user-data-dir` | Process VS Code distinct |
+```bash
+make vscode                         # dossier courant
+make vscode DIR=~/dev/mon-projet    # un autre projet
+```
 
-`--user-data-dir` n'est pas cosmétique : sans lui, `code` délègue à l'instance
-VS Code déjà ouverte et l'environnement du terminal n'est pas repris.
+Le script écrit `.claude/settings.local.json` dans le projet ciblé, puis ouvre
+une fenêtre normale. **C'est ce fichier qui fait tout le travail** : il ne
+concerne que ce projet, donc tes autres projets et ton CLI restent sur ton
+compte Anthropic.
+
+Pas de profil VS Code séparé par défaut — voir l'avertissement ci-dessous.
+
+### `--isolated`, et pourquoi ce n'est pas le défaut
+
+```bash
+./scripts/vscode.sh --isolated ~/dev/mon-projet
+```
+
+Ajoute un profil VS Code dédié et une instance séparée. Deux effets de bord à
+connaître avant de l'utiliser :
+
+- un profil neuf **n'a aucune extension installée**, Claude Code compris ;
+- VS Code **mémorise l'association dossier → profil**. Rouvrir ce dossier plus
+  tard, même normalement, le rouvre dans ce profil vide.
+
+C'est la cause classique du « Claude Code a disparu de mes fenêtres ». Pour
+revenir en arrière : `Cmd+Shift+P` → `Profiles: Switch Profile` → `Default`,
+dans chaque fenêtre concernée. Le profil se supprime ensuite depuis
+`Profiles: Delete Profile`, et le dossier `~/.vscode-Scaleway-GLM` peut être
+jeté.
+
+L'isolation par `settings.local.json` suffit dans la quasi-totalité des cas.
 
 ### Pourquoi pas `~/.claude/settings.json`
 
@@ -132,6 +172,7 @@ moins cher — c'est celui qui encaisse le volume de petites requêtes.
 
 | Symptôme | Cause |
 |---|---|
+| `Unable to connect to API (ECONNREFUSED)` | Proxy éteint, ou `ANTHROPIC_BASE_URL` sur `0.0.0.0` au lieu de `127.0.0.1` |
 | `model not found: claude-sonnet-4-5` | Alias manquant dans `config.yaml` |
 | Erreur 400 sur `cache_control` ou `thinking` | `drop_params: true` désactivé |
 | Claude Code n'édite aucun fichier | Pas de `tool_calls` → `make tools` |
@@ -141,6 +182,16 @@ moins cher — c'est celui qui encaisse le volume de petites requêtes.
 | Le proxy ignore la vraie clé Anthropic | Vérifier `ANTHROPIC_API_KEY=""` |
 
 Pour voir les requêtes traduites en clair : `set_verbose: true` dans `config.yaml`.
+
+### `0.0.0.0` contre `127.0.0.1`
+
+LiteLLM **écoute** sur `0.0.0.0`, ce qui signifie « toutes les interfaces ».
+Ce n'est pas une adresse à laquelle on se **connecte** : le client Node de
+Claude Code la refuse, d'où `ECONNREFUSED`. Toutes les URL côté client
+pointent donc sur `127.0.0.1`.
+
+`make check` distingue les deux cas — proxy éteint, ou proxy actif mais
+adresse de connexion incorrecte.
 
 ---
 

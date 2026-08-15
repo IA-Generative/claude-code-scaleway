@@ -9,19 +9,14 @@
 set -uo pipefail
 cd "$(dirname "$0")/.." || exit 1
 
-[ -f .env ] && set -a && . ./.env && set +a
+. ./scripts/lib.sh
+load_env
 
 SCW_URL="https://api.scaleway.ai/v1"
 MODEL="${MODEL:-glm-5.2}"
 PROXY_PORT="${PROXY_PORT:-4000}"
-PROXY_URL="${PROXY_URL:-http://0.0.0.0:$PROXY_PORT}"
+PROXY_URL="${PROXY_URL:-http://127.0.0.1:$PROXY_PORT}"
 PROXY_KEY="${PROXY_KEY:-sk-local-dev-1234}"
-
-BOLD=$'\033[1m'; RED=$'\033[31m'; GREEN=$'\033[32m'; YELLOW=$'\033[33m'; OFF=$'\033[0m'
-hr()   { printf '\n%s>> %s%s\n' "$BOLD" "$1" "$OFF"; }
-ok()   { printf '%s   OK%s  %s\n' "$GREEN" "$OFF" "$1"; }
-bad()  { printf '%s   KO%s  %s\n' "$RED" "$OFF" "$1"; }
-warn() { printf '%s   !!%s  %s\n' "$YELLOW" "$OFF" "$1"; }
 
 if [ -z "${SCW_SECRET_KEY:-}" ]; then
   bad "SCW_SECRET_KEY non défini. Copie .env.example en .env et remplis-le."
@@ -110,7 +105,15 @@ else:
 step_proxy() {
   hr "4. Proxy LiteLLM au format Anthropic"
   if ! curl -s --max-time 5 -o /dev/null "$PROXY_URL/health/liveliness"; then
-    warn "Proxy injoignable sur $PROXY_URL — lance 'make proxy' dans un autre terminal."
+    bad "Proxy injoignable sur $PROXY_URL"
+    # Distinguer "pas demarre" de "mauvaise adresse de connexion"
+    if command -v lsof >/dev/null 2>&1 && lsof -nP -iTCP:"$PROXY_PORT" -sTCP:LISTEN >/dev/null 2>&1; then
+      warn "Quelque chose ecoute pourtant sur le port $PROXY_PORT :"
+      lsof -nP -iTCP:"$PROXY_PORT" -sTCP:LISTEN 2>/dev/null | sed 's/^/       /'
+      warn "Verifie que ANTHROPIC_BASE_URL cible 127.0.0.1 et non 0.0.0.0."
+    else
+      warn "Rien n'ecoute sur le port $PROXY_PORT. Lance 'make proxy' dans un autre terminal."
+    fi
     return 1
   fi
   local body

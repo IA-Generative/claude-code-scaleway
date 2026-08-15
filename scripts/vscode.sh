@@ -1,76 +1,82 @@
 #!/usr/bin/env bash
-# Ouvre une fenêtre VS Code isolée, câblée sur le proxy Scaleway.
+# Ouvre une fenetre VS Code sur un projet bascule vers le proxy Scaleway.
 #
-#   ./scripts/vscode.sh                 ouvre le dossier courant
+#   ./scripts/vscode.sh                  ouvre le dossier courant
 #   ./scripts/vscode.sh ~/dev/mon-projet
+#   ./scripts/vscode.sh --isolated ~/dev/mon-projet
 #
-# Isolation obtenue :
-#   - un profil VS Code dédié (extensions et réglages séparés)
-#   - une instance séparée, donc un environnement propre
-#   - un .claude/settings.local.json posé dans le projet ciblé
+# L'isolation vient du fichier .claude/settings.local.json ecrit dans le
+# projet cible : il ne concerne que ce projet. Les autres projets et le CLI
+# restent sur le compte Anthropic.
 #
-# Tes autres fenêtres VS Code et ton CLI `claude` continuent d'utiliser
-# ton compte Anthropic normal.
+# --isolated ajoute un profil VS Code dedie. A n'utiliser qu'en connaissance
+# de cause : VS Code memorise l'association dossier <-> profil, et un profil
+# neuf n'a aucune extension installee, Claude Code compris.
 
 set -uo pipefail
 cd "$(dirname "$0")/.." || exit 1
 REPO="$PWD"
 
-[ -f .env ] && set -a && . ./.env && set +a
+. ./scripts/lib.sh
+load_env
 
 MODEL="${MODEL:-glm-5.2}"
 PROXY_PORT="${PROXY_PORT:-4000}"
 PROXY_KEY="${PROXY_KEY:-sk-local-dev-1234}"
-PROXY_URL="http://0.0.0.0:$PROXY_PORT"
+PROXY_URL="http://127.0.0.1:$PROXY_PORT"
 PROFILE="${VSCODE_PROFILE:-Scaleway-GLM}"
 
-TARGET="$(cd "${1:-$PWD}" 2>/dev/null && pwd)" || { echo "Dossier introuvable : ${1:-}" >&2; exit 1; }
+ISOLATED=0
+ARGS=""
+for a in "$@"; do
+    case "$a" in
+        --isolated) ISOLATED=1 ;;
+        *) ARGS="$a" ;;
+    esac
+done
 
-BOLD=$'\033[1m'; RED=$'\033[31m'; GREEN=$'\033[32m'; YELLOW=$'\033[33m'; OFF=$'\033[0m'
-ok()   { printf '%s  OK%s  %s\n' "$GREEN" "$OFF" "$1"; }
-bad()  { printf '%s  KO%s  %s\n' "$RED" "$OFF" "$1"; }
-warn() { printf '%s  !!%s  %s\n' "$YELLOW" "$OFF" "$1"; }
+TARGET="$(cd "${ARGS:-$PWD}" 2>/dev/null && pwd)" \
+    || { bad "Dossier introuvable : ${ARGS:-}"; exit 1; }
 
 command -v code >/dev/null 2>&1 || {
-  bad "La commande 'code' est absente du PATH."
-  echo "     VS Code > Cmd+Shift+P > \"Shell Command: Install 'code' command in PATH\""
-  exit 1
+    bad "La commande 'code' est absente du PATH."
+    echo "     VS Code > Cmd+Shift+P > \"Shell Command: Install 'code' command in PATH\""
+    exit 1
 }
 
-# ── Le proxy doit tourner ────────────────────────────────────────────
+# ---- Le proxy doit tourner ------------------------------------------
 if ! curl -s --max-time 3 -o /dev/null "$PROXY_URL/health/liveliness"; then
-  warn "Proxy injoignable sur $PROXY_URL."
-  printf '     Le lancer maintenant en arrière-plan ? [o/N] '
-  read -r rep
-  case "$rep" in
-    [oOyY]*)
-      ( cd "$REPO" && nohup litellm --config config.yaml --port "$PROXY_PORT" \
-          >"$REPO/litellm.log" 2>&1 & )
-      printf '     démarrage'
-      for _ in $(seq 1 20); do
-        sleep 1; printf '.'
-        curl -s --max-time 2 -o /dev/null "$PROXY_URL/health/liveliness" && break
-      done
-      echo
-      curl -s --max-time 3 -o /dev/null "$PROXY_URL/health/liveliness" \
-        && ok "Proxy démarré (logs : litellm.log)" \
-        || { bad "Le proxy n'a pas démarré. Voir litellm.log"; exit 1; }
-      ;;
-    *) echo "     Lance 'make proxy' dans un autre terminal, puis recommence."; exit 1 ;;
-  esac
+    warn "Proxy injoignable sur $PROXY_URL."
+    printf '     Le lancer maintenant en arriere-plan ? [o/N] '
+    read -r rep
+    case "$rep" in
+        [oOyY]*)
+            ( cd "$REPO" && nohup litellm --config config.yaml --port "$PROXY_PORT" \
+                >"$REPO/litellm.log" 2>&1 & )
+            printf '     demarrage'
+            for _ in $(seq 1 20); do
+                sleep 1; printf '.'
+                curl -s --max-time 2 -o /dev/null "$PROXY_URL/health/liveliness" && break
+            done
+            echo
+            curl -s --max-time 3 -o /dev/null "$PROXY_URL/health/liveliness" \
+                && ok "Proxy demarre (logs : litellm.log)" \
+                || { bad "Le proxy n'a pas demarre. Voir litellm.log"; exit 1; }
+            ;;
+        *) echo "     Lance 'make proxy' dans un autre terminal, puis recommence."; exit 1 ;;
+    esac
 else
-  ok "Proxy actif sur $PROXY_URL"
+    ok "Proxy actif sur $PROXY_URL"
 fi
 
-# ── Réglages Claude Code au niveau du projet ciblé ───────────────────
-# C'est ce fichier qui fait le travail : il ne concerne que ce projet,
-# contrairement à ~/.claude/settings.json qui est global.
+# ---- Reglages Claude Code au niveau du projet cible ------------------
+# C'est ce fichier qui fait tout le travail d'isolation.
 SETTINGS="$TARGET/.claude/settings.local.json"
 mkdir -p "$TARGET/.claude"
 
 if [ -f "$SETTINGS" ] && ! grep -q '"ANTHROPIC_BASE_URL"' "$SETTINGS"; then
-  cp "$SETTINGS" "$SETTINGS.bak"
-  warn "settings.local.json existant sauvegardé en settings.local.json.bak"
+    cp "$SETTINGS" "$SETTINGS.bak"
+    warn "settings.local.json existant sauvegarde en settings.local.json.bak"
 fi
 
 cat > "$SETTINGS" <<EOF
@@ -87,34 +93,29 @@ cat > "$SETTINGS" <<EOF
   }
 }
 EOF
-ok "Réglages projet écrits : $SETTINGS"
+ok "Reglages projet ecrits : $SETTINGS"
 
-# settings.local.json n'a pas vocation à être committé
 EXCLUDE="$TARGET/.git/info/exclude"
 if [ -d "$TARGET/.git" ] && [ -f "$EXCLUDE" ] \
    && ! grep -q 'settings.local.json' "$EXCLUDE" 2>/dev/null; then
-  echo ".claude/settings.local.json" >> "$EXCLUDE" 2>/dev/null \
-    && ok "Ajouté à .git/info/exclude"
+    echo ".claude/settings.local.json" >> "$EXCLUDE" 2>/dev/null \
+        && ok "Ajoute a .git/info/exclude"
 fi
 
-# ── Instance VS Code séparée ─────────────────────────────────────────
-# --user-data-dir force un vrai process distinct : sans lui, `code` délègue
-# à l'instance déjà ouverte et l'environnement n'est pas repris.
-DATA_DIR="$HOME/.vscode-$PROFILE"
-mkdir -p "$DATA_DIR"
-
-export ANTHROPIC_BASE_URL="$PROXY_URL"
-export ANTHROPIC_AUTH_TOKEN="$PROXY_KEY"
-export ANTHROPIC_API_KEY=""
-export ANTHROPIC_MODEL="$MODEL"
-
-ok "Ouverture de $TARGET — profil « $PROFILE », modèle $MODEL"
-code --new-window \
-     --profile "$PROFILE" \
-     --user-data-dir "$DATA_DIR" \
-     "$TARGET" >/dev/null 2>&1 &
+# ---- Ouverture ------------------------------------------------------
+if [ "$ISOLATED" = "1" ]; then
+    DATA_DIR="$HOME/.vscode-$PROFILE"
+    mkdir -p "$DATA_DIR"
+    warn "Mode --isolated : profil « $PROFILE », instance separee."
+    warn "Ce profil n'a aucune extension. Installe Claude Code dedans,"
+    warn "et retiens que VS Code associera ce dossier a ce profil."
+    ok "Ouverture de $TARGET"
+    code --new-window --profile "$PROFILE" --user-data-dir "$DATA_DIR" \
+         "$TARGET" >/dev/null 2>&1 &
+else
+    ok "Ouverture de $TARGET — modele $MODEL"
+    code --new-window "$TARGET" >/dev/null 2>&1 &
+fi
 
 echo
-echo "${BOLD}Dans la fenêtre :${OFF} /status doit indiquer $PROXY_URL."
-echo "Si Claude Code demande une connexion, c'est que les réglages ne sont"
-echo "pas pris : ferme la fenêtre et vérifie $SETTINGS."
+echo "Dans la fenetre : /status doit indiquer $PROXY_URL"
