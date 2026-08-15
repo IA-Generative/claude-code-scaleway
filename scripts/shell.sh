@@ -41,10 +41,22 @@ export DISABLE_PROMPT_CACHING=1
 # au-dela, l'API renvoie un 400 "payload validation".
 export CLAUDE_CODE_MAX_OUTPUT_TOKENS=16384
 
-# Repere visuel pour ne pas confondre ce shell avec un shell normal
-export PS1="[$MODEL] \w \$ "
-
 ok "Shell $MODEL dans $TARGET — tape 'claude' pour demarrer, 'exit' pour sortir"
 echo
 cd "$TARGET" || exit 1
-exec "${SHELL:-/bin/bash}" --norc -i
+
+# Repere visuel pour ne pas confondre ce shell avec un shell normal.
+# L'option "sans rc" differe selon le shell : --norc est du bash pur,
+# zsh (defaut macOS) exige --no-rcs — sinon l'exec meurt et l'utilisateur
+# retombe sans le voir dans son shell normal, sans l'environnement proxy.
+SHELL_BIN="${SHELL:-/bin/bash}"
+case "$(basename "$SHELL_BIN")" in
+    zsh)
+        export PS1="[$MODEL] %~ %# "
+        exec "$SHELL_BIN" --no-rcs -i
+        ;;
+    *)
+        export PS1="[$MODEL] \w \$ "
+        exec "$SHELL_BIN" --norc -i
+        ;;
+esac
