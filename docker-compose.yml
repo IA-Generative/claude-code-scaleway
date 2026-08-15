@@ -1,7 +1,9 @@
 # Alternative à l'installation pip : make up / make down
 services:
   litellm:
-    image: ghcr.io/berriai/litellm:main-latest
+    # Version epinglee = celle validee dans le venv (requirements.txt) ;
+    # main-latest peut changer de comportement (routage Responses API...).
+    image: ghcr.io/berriai/litellm:v1.96.2
     container_name: cc-scaleway-proxy
     restart: unless-stopped
     ports:
