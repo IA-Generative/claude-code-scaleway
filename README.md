@@ -19,6 +19,8 @@ Scaleway expose une API compatible **OpenAI**. Claude Code parle **Anthropic**. 
 Claude Code ──/v1/messages (Anthropic)──▶ LiteLLM :4000 ──/chat/completions (OpenAI)──▶ api.scaleway.ai/v1
 ```
 
+> **GLM, c'est quoi ?** *General Language Model* — une famille de grands modèles de langage **à poids ouverts** développée par **Zhipu AI** (aussi connu sous la marque **Z.ai**), laboratoire chinois issu de l'université Tsinghua. La série (GLM-4, GLM-4.5, GLM-4.6…) est réputée pour ses capacités de **codage et d'usage d'outils** (comportement *agentique*), ce qui en fait un candidat naturel pour piloter Claude Code. `glm-5.2` est l'itération servie par Scaleway et retenue par défaut ici — voir [Notes](#-notes--choix-de-conception) sur la vérification de son identifiant.
+
 ## Sommaire
 
 - [🚀 Démarrage rapide](#-démarrage-rapide)
