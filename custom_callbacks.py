@@ -8,9 +8,14 @@ fixent leur propre max_tokens : on ecrete donc ici, quel que soit le client.
 Reference dans config.yaml :  litellm_settings.callbacks
 """
 
+import os
+
 from litellm.integrations.custom_logger import CustomLogger
 
-SCW_MAX_COMPLETION_TOKENS = 16384
+# Garde-fou serveur, independant du client par conception. Defaut = limite
+# Scaleway pour glm-5.2 ; surchargeable via SCW_MAX_COMPLETION_TOKENS (ex. si
+# le modele ou le plafond change) sans toucher au code.
+SCW_MAX_COMPLETION_TOKENS = int(os.getenv("SCW_MAX_COMPLETION_TOKENS", "16384"))
 
 
 class ClampMaxTokens(CustomLogger):

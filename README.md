@@ -93,6 +93,7 @@ Quatre variables, **sans commentaires ni guillemets** :
 | `MODEL` | Identifiant du modèle tel que servi par Scaleway — `make models` fait foi |
 | `PROXY_KEY` | Clé arbitraire protégeant le proxy local, devient `ANTHROPIC_AUTH_TOKEN` |
 | `PROXY_PORT` | Port d'écoute de LiteLLM |
+| `MAX_OUTPUT_TOKENS` | *(optionnel)* Plafond de tokens de sortie — défaut `16384` (limite Scaleway pour glm-5.2), défini une seule fois dans `scripts/lib.sh`. À relever si tu passes sur un modèle au plafond plus haut. |
 
 > ⚠️ Le `.env` est délibérément **dépourvu de commentaires** : une apostrophe ou un backtick dans un commentaire casse le quoting selon le shell et selon l'outil qui lit le fichier. `scripts/lib.sh` découpe chaque ligne au lieu de sourcer le fichier, donc rien n'y est jamais interprété — mais autant ne pas réintroduire le piège en éditant.
 

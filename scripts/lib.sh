@@ -55,6 +55,13 @@ load_env() {
     done < "$envfile"
 }
 
+# Plafond de tokens de sortie — limite Scaleway pour glm-5.2 (400 "payload
+# validation" au-dela). Point unique de verite cote client : shell.sh et
+# vscode.sh en derivent CLAUDE_CODE_MAX_OUTPUT_TOKENS. Surcharge possible via
+# MAX_OUTPUT_TOKENS dans .env. Le proxy garde son propre garde-fou serveur
+# (custom_callbacks.py), independant par conception.
+DEFAULT_MAX_OUTPUT_TOKENS=16384
+
 # Couleurs et helpers d'affichage
 BOLD=$(printf '\033[1m'); RED=$(printf '\033[31m')
 GREEN=$(printf '\033[32m'); YELLOW=$(printf '\033[33m'); OFF=$(printf '\033[0m')
