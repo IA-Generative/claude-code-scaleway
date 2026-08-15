@@ -51,7 +51,14 @@ if ! curl -s --max-time 3 -o /dev/null "$PROXY_URL/health/liveliness"; then
     read -r rep
     case "$rep" in
         [oOyY]*)
-            ( cd "$REPO" && nohup litellm --config config.yaml --port "$PROXY_PORT" \
+            if [ -x "$REPO/.venv/bin/litellm" ]; then
+                LITELLM="$REPO/.venv/bin/litellm"
+            elif command -v litellm >/dev/null 2>&1; then
+                LITELLM="litellm"
+            else
+                bad "LiteLLM absent. Lance 'make install'."; exit 1
+            fi
+            ( cd "$REPO" && nohup "$LITELLM" --config config.yaml --port "$PROXY_PORT" \
                 >"$REPO/litellm.log" 2>&1 & )
             printf '     demarrage'
             for _ in $(seq 1 20); do

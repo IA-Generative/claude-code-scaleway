@@ -8,14 +8,33 @@ PROXY_PORT ?= 4000
 PROXY_KEY  ?= sk-local-dev-1234
 MODEL      ?= glm-5.2
 
+# LiteLLM vit dans un venv dedie : versions figees par requirements.txt.
+VENV    := .venv
+LITELLM := $(VENV)/bin/litellm
+
 help:  ## Affiche cette aide
 	@grep -hE '^[a-z-]+:.*?## .*$$' $(firstword $(MAKEFILE_LIST)) | awk 'BEGIN{FS=":.*?## "};{printf "  \033[1m%-10s\033[0m %s\n", $$1, $$2}'
 
-install:  ## Installe LiteLLM (pip)
-	pip install 'litellm[proxy]'
+install:  ## Installe LiteLLM dans un venv dedie
+	@command -v python3 >/dev/null || { echo "python3 introuvable"; exit 1; }
+	python3 -m venv $(VENV)
+	$(VENV)/bin/python -m pip install --upgrade pip
+	$(VENV)/bin/python -m pip install -r requirements.txt
+	@echo
+	@$(VENV)/bin/python -c "from fastapi.dependencies.utils import get_flat_dependant; import fastapi; print('OK  fastapi', fastapi.__version__, '- import LiteLLM satisfait')" \
+	  || { echo "KO  fastapi incompatible, voir requirements.txt"; exit 1; }
 
 proxy:  ## Lance le proxy LiteLLM au premier plan
-	litellm --config config.yaml --port $(PROXY_PORT)
+	@if [ -x "$(LITELLM)" ]; then \
+	    exec $(LITELLM) --config config.yaml --port $(PROXY_PORT); \
+	elif command -v litellm >/dev/null 2>&1; then \
+	    echo "Attention: litellm hors venv, conflits de dependances possibles."; \
+	    echo "En cas d'ImportError, lance 'make install' pour un venv propre."; \
+	    exec litellm --config config.yaml --port $(PROXY_PORT); \
+	else \
+	    echo "LiteLLM absent. Lance 'make install', ou 'make up' pour Docker."; \
+	    exit 1; \
+	fi
 
 up:  ## Lance le proxy via Docker
 	docker compose up -d

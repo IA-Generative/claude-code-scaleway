@@ -1,0 +1,13 @@
+# LiteLLM 1.96.2 importe get_flat_dependant depuis fastapi.dependencies.utils.
+# FastAPI a supprime ce symbole en 0.140.7 : l'import du proxy echoue, puis le
+# gestionnaire d'erreur masque la cause derriere un ModuleNotFoundError sur
+# proxy_server.
+#
+# Frontiere etablie par dichotomie :
+#   0.140.6  get_flat_dependant present  -> LiteLLM demarre
+#   0.140.7  get_flat_dependant absent   -> ImportError
+#
+# A relever quand LiteLLM aura corrige l'import. Pour reverifier :
+#   .venv/bin/python -c "from fastapi.dependencies.utils import get_flat_dependant"
+litellm[proxy]
+fastapi<0.140.7

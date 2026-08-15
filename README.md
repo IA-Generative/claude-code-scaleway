@@ -172,6 +172,8 @@ moins cher — c'est celui qui encaisse le volume de petites requêtes.
 
 | Symptôme | Cause |
 |---|---|
+| `ImportError: cannot import name 'get_flat_dependant'` | LiteLLM installé hors venv, `fastapi` incompatible — voir ci-dessous |
+| `ModuleNotFoundError: No module named 'proxy_server'` | Symptôme secondaire du même problème |
 | `Unable to connect to API (ECONNREFUSED)` | Proxy éteint, ou `ANTHROPIC_BASE_URL` sur `0.0.0.0` au lieu de `127.0.0.1` |
 | `model not found: claude-sonnet-4-5` | Alias manquant dans `config.yaml` |
 | Erreur 400 sur `cache_control` ou `thinking` | `drop_params: true` désactivé |
@@ -182,6 +184,51 @@ moins cher — c'est celui qui encaisse le volume de petites requêtes.
 | Le proxy ignore la vraie clé Anthropic | Vérifier `ANTHROPIC_API_KEY=""` |
 
 Pour voir les requêtes traduites en clair : `set_verbose: true` dans `config.yaml`.
+
+### LiteLLM qui casse à l'import
+
+```
+ImportError: cannot import name 'get_flat_dependant' from 'fastapi.dependencies.utils'
+ModuleNotFoundError: No module named 'proxy_server'
+```
+
+Le second message est trompeur : c'est le gestionnaire d'erreur de LiteLLM qui
+retombe sur un import alternatif après l'échec du premier. La cause réelle est
+l'`ImportError` au-dessus.
+
+**FastAPI a supprimé `get_flat_dependant` en 0.140.7**, alors que LiteLLM 1.96.2
+l'importe encore. Frontière établie par dichotomie :
+
+| FastAPI | `get_flat_dependant` | LiteLLM |
+|---|---|---|
+| 0.140.6 | présent | démarre |
+| 0.140.7 et au-delà | absent | `ImportError` |
+
+`requirements.txt` porte la contrainte `fastapi<0.140.7`, et `make install`
+vérifie l'import avant de rendre la main. Ce n'est **pas** un problème
+d'environnement pollué : reproduit à l'identique dans un venv neuf.
+
+```bash
+make install     # cree .venv avec les versions compatibles
+make proxy
+```
+
+Une installation globale préexistante peut rester, `make proxy` privilégie
+`.venv/bin/litellm` et avertit s'il retombe dessus.
+
+Pour reverifier quand LiteLLM aura corrigé l'import :
+
+```bash
+.venv/bin/python -c "from fastapi.dependencies.utils import get_flat_dependant"
+```
+
+Alternative sans Python du tout :
+
+```bash
+make up      # docker compose
+make logs
+make down
+```
 
 ### `0.0.0.0` contre `127.0.0.1`
 
