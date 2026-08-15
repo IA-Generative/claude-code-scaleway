@@ -37,6 +37,9 @@ export ANTHROPIC_DEFAULT_SONNET_MODEL="$MODEL"
 export ANTHROPIC_DEFAULT_HAIKU_MODEL="$MODEL"
 export MAX_THINKING_TOKENS=0
 export DISABLE_PROMPT_CACHING=1
+# Scaleway plafonne max_completion_tokens a 16384 pour glm-5.2 ;
+# au-dela, l'API renvoie un 400 "payload validation".
+export CLAUDE_CODE_MAX_OUTPUT_TOKENS=16384
 
 # Repere visuel pour ne pas confondre ce shell avec un shell normal
 export PS1="[$MODEL] \w \$ "
