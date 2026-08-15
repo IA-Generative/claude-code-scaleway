@@ -31,7 +31,27 @@ claude --model glm-5.2
 `make env` n'émet que des lignes `export`, donc `eval` reste sûr — les
 messages d'aide partent sur stderr.
 
-Variante Docker, si tu préfères ne rien installer : `make up`, puis `make logs` / `make down`.
+### Variante Docker — recommandée pour les sessions longues
+
+```bash
+make up       # démarre le conteneur (port 4000)
+make logs     # suit les logs
+make down     # arrête
+```
+
+L'image est **épinglée** (`ghcr.io/berriai/litellm:v1.96.2`, la version
+validée du venv — `main-latest` peut changer de comportement d'un pull à
+l'autre). Le conteneur monte `config.yaml` et `custom_callbacks.py`, et
+redémarre tout seul (`restart: unless-stopped`) : aucun terminal à garder
+ouvert, il survit aux reboots. C'est le mode à préférer pour les runs
+autonomes de nuit.
+
+⚠ Ne pas cumuler `make proxy` (venv) et `make up` (Docker) : voir
+« Docker démarre "sans conflit" » dans le dépannage.
+
+Sur cette machine, le port 4000 est réservé à cette passerelle dans le
+registre `owuicore-main/docker-utilise.md` (collision connue avec les
+composes du repo `console`, qui mappent aussi `4000`).
 
 ### Le fichier `.env`
 
@@ -69,6 +89,12 @@ c'est le modèle.
 
 `make check` enchaîne les cinq étapes du diagnostic (modèles disponibles,
 appel direct, tool calling, traduction Anthropic, `count_tokens`).
+
+GLM-5.2 est un modèle *raisonneur* : il dépense ses premiers tokens en
+réflexion (`reasoning` côté OpenAI, bloc `thinking` côté Anthropic) avant
+d'émettre la réponse. Les tests du script laissent donc 500 tokens de marge —
+avec un `max_tokens` serré, le modèle est coupé en plein raisonnement et la
+réponse texte n'arrive jamais.
 
 ---
 
@@ -154,17 +180,47 @@ VS Code normale : les deux profils cohabitent sans interférence.
 Tout Scaleway sert des modèles ouverts au même endpoint. Pour en essayer un autre :
 
 1. `make models` → repère l'identifiant
-2. remplace `openai/glm-5.2` dans `config.yaml` (trois occurrences)
+2. remplace `hosted_vllm/glm-5.2` dans `config.yaml` (toutes les occurrences —
+   modèle principal + alias) en gardant le préfixe `hosted_vllm/`
 3. mets `MODEL` à jour dans `.env`
 4. `make tools` pour valider avant de perdre du temps
 
-Les alias `claude-sonnet-4-5` et `claude-haiku-4-5` dans `config.yaml` ne sont
-pas décoratifs : Claude Code réclame ces noms pour ses tâches de fond
-(résumés, titres de conversation). Sans eux, tu récupères des erreurs
-`model not found` même avec un `--model` correct.
+Les alias `claude-sonnet-4-5` / `claude-haiku-4-5` **et leurs variantes
+versionnées** (`claude-sonnet-4-5-20250929`, `claude-haiku-4-5-20251001`)
+dans `config.yaml` ne sont pas décoratifs : Claude Code réclame ces noms pour
+ses tâches de fond (résumés, titres de conversation), et retombe sur les IDs
+versionnés quand une session démarre sans l'environnement complet. Sans eux,
+tu récupères des erreurs `model not found` même avec un `--model` correct.
 
 Le mapping `claude-haiku-4-5` est un bon endroit pour brancher un modèle
 moins cher — c'est celui qui encaisse le volume de petites requêtes.
+
+---
+
+## Les pièges Scaleway déjà neutralisés dans la config
+
+Trois choix de `config.yaml` ont l'air arbitraires mais réparent chacun une
+panne réelle. Ne pas les défaire sans savoir pourquoi.
+
+**Préfixe `hosted_vllm/` et non `openai/`.** Même protocole OpenAI, mais le
+provider `openai` de LiteLLM (≥ 1.9x) suppose que le backend implémente la
+*Responses API* : il route `/v1/messages` vers `/v1/responses` (422
+`ROUTE NOT SUPPORTED` chez Scaleway) et tente le comptage de tokens sur
+`/v1/responses/input_tokens` (404 en rafale à chaque `count_tokens`, une
+requête HTTPS perdue à chaque fois). `hosted_vllm` ne projette aucune de ces
+suppositions. Le flag `use_chat_completions_url_for_anthropic_messages: true`
+reste en ceinture-bretelles si quelqu'un remet un préfixe `openai/`.
+
+**Écrêtage à 16384 tokens de sortie (`custom_callbacks.py`).** Scaleway
+plafonne `max_completion_tokens` à 16384 pour glm-5.2 et renvoie un 400
+au-delà. `CLAUDE_CODE_MAX_OUTPUT_TOKENS=16384` (exporté par `shell.sh` /
+`vscode.sh`) couvre la majorité des appels de Claude Code, mais certains
+appels internes — la compaction de contexte notamment — fixent leur propre
+`max_tokens` : le proxy écrête donc lui-même, quel que soit le client. Sur
+une session longue, une compaction qui échoue en boucle peut coincer la
+session ; c'est ce garde-fou qui l'empêche.
+
+**Alias versionnés.** Voir « Changer de modèle » ci-dessus.
 
 ---
 
@@ -175,10 +231,16 @@ moins cher — c'est celui qui encaisse le volume de petites requêtes.
 | `ImportError: cannot import name 'get_flat_dependant'` | LiteLLM installé hors venv, `fastapi` incompatible — voir ci-dessous |
 | `ModuleNotFoundError: No module named 'proxy_server'` | Symptôme secondaire du même problème |
 | `Unable to connect to API (ECONNREFUSED)` | Proxy éteint, ou `ANTHROPIC_BASE_URL` sur `0.0.0.0` au lieu de `127.0.0.1` |
-| `model not found: claude-sonnet-4-5` | Alias manquant dans `config.yaml` |
+| `model not found: claude-sonnet-4-5` (ou un ID versionné) | Alias manquant dans `config.yaml` |
+| 422 `endpoint '/v1/responses' is not supported` | Préfixe `openai/` réintroduit — voir section ci-dessus |
+| 404 `route '/v1/responses/input_tokens' not found` en rafale | Idem — comptage de tokens du provider `openai` ; cosmétique (fallback local) mais bruyant |
+| 400 `max_completion_tokens is limited to 16384` | Session lancée sans les scripts (pas de plafond client) **et** proxy sans `custom_callbacks.py` |
+| 429 `INSUFFICIENT QUOTA` | Quota Scaleway *tokens par minute* atteint — pas un bug : Claude Code retente avec backoff. Augmenter le quota en console, ou router `claude-haiku-*` vers un autre modèle (quotas par modèle) |
+| « model may not exist » au lancement de `claude` | La session ne parle pas au proxy : vérifier le prompt `[glm-5.2]` du shell, sinon `claude` part vers la vraie API Anthropic |
+| Docker démarre « sans conflit » alors que `make proxy` tourne | Piège dual-stack macOS : le venv tient le 4000 en IPv4, Docker se rabat sur IPv6 — le trafic réel va toujours au venv. Arrêter le venv puis `docker compose down && make up` |
 | Erreur 400 sur `cache_control` ou `thinking` | `drop_params: true` désactivé |
 | Claude Code n'édite aucun fichier | Pas de `tool_calls` → `make tools` |
-| `/context` affiche des chiffres absurdes | `count_tokens` non implémenté, cosmétique |
+| `/context` affiche des chiffres approximatifs | `count_tokens` compté par le tokenizer local du proxy, pas par Scaleway — sans gravité |
 | Réponses tronquées sur les gros fichiers | Fenêtre de contexte insuffisante |
 | Blocs `thinking` qui cassent le flux | `export MAX_THINKING_TOKENS=0` |
 | Le proxy ignore la vraie clé Anthropic | Vérifier `ANTHROPIC_API_KEY=""` |
@@ -239,6 +301,32 @@ pointent donc sur `127.0.0.1`.
 
 `make check` distingue les deux cas — proxy éteint, ou proxy actif mais
 adresse de connexion incorrecte.
+
+---
+
+## Limites en l'état
+
+**Les quotas par défaut de Scaleway sont limités.** Ça marche, mais c'est
+sensible dès que Claude Code parallélise — sous-agents, tâches de fond,
+compaction : plusieurs requêtes simultanées saturent vite le quota
+*tokens par minute* du projet, et tout ralentit (429 `INSUFFICIENT QUOTA`,
+absorbés par les retries de Claude Code — la session avance, au ralenti).
+Pour un usage soutenu ou des runs autonomes, il faudra probablement passer
+sur un **déploiement dédié** (Scaleway Managed Inference ou équivalent)
+quand il sera disponible pour le modèle visé ; en attendant, on peut
+demander une augmentation de quota en console, ou répartir les alias
+`claude-haiku-*` sur un second modèle (les quotas sont par modèle).
+
+**Le mode Docker dépend du démon Docker.** `make up` exige que Docker
+Desktop tourne — sinon : `Cannot connect to the Docker daemon` (le relancer :
+`open -a Docker`). Une fois le démon actif, le conteneur se débrouille seul
+(`restart: unless-stopped`), y compris après un reboot.
+
+**Les librairies sont épinglées à cause d'une incompatibilité.** LiteLLM
+1.96.2 importe un symbole que FastAPI a supprimé en 0.140.7 : d'où la
+contrainte `fastapi<0.140.7` dans `requirements.txt` (venv) et l'image
+Docker épinglée `v1.96.2`. Monter l'une sans l'autre casse le proxy au
+démarrage — détail complet dans « LiteLLM qui casse à l'import » ci-dessus.
 
 ---
 
