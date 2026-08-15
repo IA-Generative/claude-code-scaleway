@@ -52,7 +52,7 @@ step_chat() {
   local body
   body=$(curl -s --max-time 60 "$SCW_URL/chat/completions" \
     -H "Authorization: Bearer $SCW_SECRET_KEY" -H "Content-Type: application/json" \
-    -d "{\"model\":\"$MODEL\",\"messages\":[{\"role\":\"user\",\"content\":\"Réponds uniquement: OK\"}],\"max_tokens\":20}")
+    -d "{\"model\":\"$MODEL\",\"messages\":[{\"role\":\"user\",\"content\":\"Réponds uniquement: OK\"}],\"max_tokens\":500}")
   local txt
   txt=$(printf '%s' "$body" | python3 -c '
 import sys, json
@@ -120,7 +120,7 @@ step_proxy() {
   body=$(curl -s --max-time 60 -X POST "$PROXY_URL/v1/messages" \
     -H "content-type: application/json" -H "x-api-key: $PROXY_KEY" \
     -H "anthropic-version: 2023-06-01" \
-    -d "{\"model\":\"$MODEL\",\"messages\":[{\"role\":\"user\",\"content\":\"Réponds uniquement: OK\"}],\"max_tokens\":20}")
+    -d "{\"model\":\"$MODEL\",\"messages\":[{\"role\":\"user\",\"content\":\"Réponds uniquement: OK\"}],\"max_tokens\":500}")
   local txt
   txt=$(printf '%s' "$body" | python3 -c '
 import sys, json
