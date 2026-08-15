@@ -1,4 +1,4 @@
-.PHONY: help install proxy up down logs check models tools env
+.PHONY: help install proxy up down logs check models tools env vscode
 .DEFAULT_GOAL := help
 
 -include .env
@@ -34,6 +34,9 @@ models:  ## Liste les modèles servis par Scaleway
 
 tools:  ## Teste le tool calling (le test déterminant)
 	@./scripts/check.sh tools
+
+vscode:  ## Ouvre une fenêtre VS Code isolée (make vscode DIR=~/dev/projet)
+	@./scripts/vscode.sh $(DIR)
 
 env:  ## Affiche les exports à coller pour lancer Claude Code
 	@echo 'export ANTHROPIC_BASE_URL=http://0.0.0.0:$(PROXY_PORT)'

@@ -60,26 +60,52 @@ appel direct, tool calling, traduction Anthropic, `count_tokens`).
 
 ---
 
-## Extension VS Code
+## Fenêtre VS Code dédiée
 
-L'extension n'a pas de configuration propre : elle lit celle du CLI.
-`.vscode/settings.json` ne sert à rien ici.
-
-Dans `~/.claude/settings.json` :
-
-```json
-{
-  "env": {
-    "ANTHROPIC_BASE_URL": "http://0.0.0.0:4000",
-    "ANTHROPIC_AUTH_TOKEN": "sk-local-dev-1234",
-    "ANTHROPIC_API_KEY": "",
-    "ANTHROPIC_MODEL": "glm-5.2"
-  }
-}
+```bash
+make vscode                        # ouvre le dossier courant
+make vscode DIR=~/dev/mon-projet   # ouvre un autre projet
 ```
 
-Lance le proxy **avant** d'ouvrir VS Code, puis redémarre VS Code complètement —
-un simple reload de fenêtre ne recharge pas toujours l'environnement.
+Une fenêtre s'ouvre sur GLM, **sans rien changer à tes autres fenêtres VS Code
+ni à ton CLI `claude`**, qui restent sur ton compte Anthropic.
+
+Le script vérifie que le proxy tourne (et propose de le démarrer), puis isole
+la session sur trois plans :
+
+| Mécanisme | Rôle |
+|---|---|
+| `.claude/settings.local.json` dans le projet ciblé | Bascule Claude Code sur le proxy, pour ce projet uniquement |
+| `--profile Scaleway-GLM` | Extensions et réglages VS Code séparés |
+| `--user-data-dir` | Process VS Code distinct |
+
+`--user-data-dir` n'est pas cosmétique : sans lui, `code` délègue à l'instance
+VS Code déjà ouverte et l'environnement du terminal n'est pas repris.
+
+### Pourquoi pas `~/.claude/settings.json`
+
+Ce fichier est **global**. Y mettre `ANTHROPIC_BASE_URL` bascule *tout* sur
+GLM — tous tes projets, toutes tes fenêtres, ton CLI. La portée projet
+(`.claude/settings.local.json`) fait la même chose, mais confinée.
+
+L'ordre de priorité de Claude Code, du plus fort au plus faible :
+
+```
+réglages managés (IT) > .claude/settings.local.json > .claude/settings.json > ~/.claude/settings.json
+```
+
+`.vscode/settings.json` ne joue aucun rôle : l'extension ne le lit pas.
+
+### Basculer un projet à la main
+
+`templates/settings.local.json` est le fichier commenté à copier dans
+`<projet>/.claude/settings.local.json`. Aucun script requis, mais pense à
+l'exclure du versionnement — le script le fait via `.git/info/exclude`.
+
+### Repasser sur Anthropic
+
+Supprime `.claude/settings.local.json` du projet, ou ouvre-le dans une fenêtre
+VS Code normale : les deux profils cohabitent sans interférence.
 
 ---
 

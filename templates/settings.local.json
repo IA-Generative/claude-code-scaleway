@@ -1,0 +1,23 @@
+{
+  "_commentaire": "À copier dans .claude/settings.local.json à la racine d'un projet pour y basculer Claude Code sur Scaleway, sans toucher aux autres projets ni au CLI. Adapte le port, la clé et le modèle. Retire les clés commençant par _ si ton parseur est strict.",
+
+  "env": {
+    "ANTHROPIC_BASE_URL": "http://0.0.0.0:4000",
+    "ANTHROPIC_AUTH_TOKEN": "sk-local-dev-1234",
+
+    "_api_key": "Vide, sinon une vraie clé Anthropic présente dans l'environnement reprendrait la main.",
+    "ANTHROPIC_API_KEY": "",
+
+    "ANTHROPIC_MODEL": "glm-5.2",
+
+    "_alias": "Claude Code réclame ces noms pour ses tâches de fond. Doivent exister dans config.yaml OU pointer ici sur le modèle réel.",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "glm-5.2",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "glm-5.2",
+
+    "_thinking": "Les blocs thinking n'ont pas d'équivalent OpenAI et cassent souvent le flux.",
+    "MAX_THINKING_TOKENS": "0",
+
+    "_cache": "cache_control n'existe pas côté OpenAI, autant ne pas le demander.",
+    "DISABLE_PROMPT_CACHING": "1"
+  }
+}
