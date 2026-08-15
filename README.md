@@ -42,6 +42,7 @@ Claude Code ──/v1/messages (Anthropic)──▶ LiteLLM :4000 ──/chat/co
 | `make models` | Liste les modèles réellement servis par Scaleway |
 | `make check` | Diagnostic complet en 5 étapes |
 | `make tools` | **Le** test qui compte (tool calling) |
+| `make cache-probe` | Scaleway rapporte-t-il des tokens de préfixe en cache ? |
 | `make proxy` | Lance le proxy en venv (garder le terminal) |
 | `make up` / `make down` / `make logs` | Proxy en Docker |
 | `make shell [DIR=…]` | Sous-shell GLM jetable |
@@ -310,6 +311,8 @@ Si le proxy venv tient déjà le 4000 en IPv4, le conteneur prend le port en IPv
 **Le mode Docker dépend du démon Docker.** `make up` exige que Docker Desktop tourne — sinon : `Cannot connect to the Docker daemon` (le relancer : `open -a Docker`). Une fois le démon actif, le conteneur se débrouille seul (`restart: unless-stopped`), y compris après un reboot.
 
 **Les librairies sont épinglées à cause d'une incompatibilité.** LiteLLM 1.96.2 importe un symbole que FastAPI a supprimé en 0.140.7 : d'où la contrainte `fastapi<0.140.7` dans `requirements.txt` (venv) et l'image Docker épinglée `v1.96.2`. Monter l'une sans l'autre casse le proxy au démarrage — détail dans [Dépannage](#-dépannage).
+
+**Pas de cache de tokens (prompt caching) exploitable.** Ce qui accélère et allège une session de code, c'est le cache de *préfixe* côté fournisseur (réutiliser le system prompt, les définitions d'outils, les tours précédents). LiteLLM ne fait que le **relayer** : il transmet `cache_control` et remonte `cache_read_input_tokens`, mais le cache réel appartient au backend. Pour Anthropic/Bedrock c'est natif ; pour un backend OpenAI-compatible comme Scaleway, il faut que l'API renvoie `usage.prompt_tokens_details.cached_tokens` — ce que `make cache-probe` mesure en envoyant deux requêtes identiques à gros préfixe. Au moment de l'écriture, GLM-5.2 chez Scaleway répond `prompt_tokens_details: null` : aucun token de préfixe facturé au tarif cache, d'où `DISABLE_PROMPT_CACHING=1` côté client et `drop_params: true` (qui jette `cache_control`) côté proxy. Le cache de *réponses* de LiteLLM (Redis/exact ou sémantique) n'aide pas ici : il exige une requête identique — jamais le cas en coding — ou renverrait une réponse périmée pour un prompt « proche ».
 
 ---
 

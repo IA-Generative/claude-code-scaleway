@@ -1,4 +1,4 @@
-.PHONY: help install proxy up down logs check models tools env vscode shell repair
+.PHONY: help install proxy up down logs check models tools cache-probe env vscode shell repair
 .DEFAULT_GOAL := help
 
 -include .env
@@ -53,6 +53,9 @@ models:  ## Liste les modèles servis par Scaleway
 
 tools:  ## Teste le tool calling (le test déterminant)
 	@./scripts/check.sh tools
+
+cache-probe:  ## Scaleway rapporte-t-il des tokens de préfixe en cache ?
+	@./scripts/check.sh cache
 
 shell:  ## Sous-shell GLM, rien n'est ecrit (make shell DIR=~/dev/projet)
 	@./scripts/shell.sh $(DIR)

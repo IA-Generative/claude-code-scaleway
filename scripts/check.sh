@@ -142,13 +142,73 @@ except Exception: pass' 2>/dev/null)
   else warn "count_tokens renvoie $code — /context sera approximatif, sans gravité."; fi
 }
 
+# Sonde — Scaleway remonte-t-il des tokens de préfixe mis en cache ?
+# Deux requêtes IDENTIQUES à gros préfixe : si le backend fait du prefix
+# caching (vLLM APC / OpenAI-style) et le rapporte, la 2e (voire la 1re)
+# annonce des cached_tokens non nuls dans usage.prompt_tokens_details. Sinon,
+# aucun cache de tokens exploitable → garder DISABLE_PROMPT_CACHING=1.
+step_cache() {
+  hr "Sonde cache de tokens (prefix caching côté Scaleway)"
+  local payload
+  payload=$(python3 - "$MODEL" <<'PY'
+import json, sys
+# Préfixe déterministe et volumineux (~5k tokens) — au-dessus du seuil
+# habituel de déclenchement du prompt caching.
+prefix = "Contexte de reference stable, a mettre en cache de prefixe. " * 400
+msgs = [
+    {"role": "system", "content": prefix},
+    {"role": "user", "content": "Reponds uniquement: OK"},
+]
+print(json.dumps({"model": sys.argv[1], "messages": msgs, "max_tokens": 16}))
+PY
+)
+  local f1 f2
+  f1=$(mktemp); f2=$(mktemp)
+  curl -s --max-time 60 "$SCW_URL/chat/completions" \
+    -H "Authorization: Bearer $SCW_SECRET_KEY" -H "Content-Type: application/json" \
+    -d "$payload" > "$f1"
+  curl -s --max-time 60 "$SCW_URL/chat/completions" \
+    -H "Authorization: Bearer $SCW_SECRET_KEY" -H "Content-Type: application/json" \
+    -d "$payload" > "$f2"
+  local verdict
+  verdict=$(python3 - "$f1" "$f2" <<'PY'
+import json, sys
+def load(p):
+    try: return json.load(open(p))
+    except Exception: return {}
+def cached(u):
+    ptd = u.get("prompt_tokens_details") or {}
+    return int(u.get("cache_read_input_tokens") or ptd.get("cached_tokens") or 0)
+u1 = (load(sys.argv[1]).get("usage") or {})
+u2 = (load(sys.argv[2]).get("usage") or {})
+if not u1 and not u2:
+    print("NOUSAGE"); sys.exit()
+c1, c2 = cached(u1), cached(u2)
+print("   requête 1 — usage:", json.dumps(u1))
+print("   requête 2 — usage:", json.dumps(u2))
+print(f"   cached_tokens : req1={c1}  req2={c2}")
+print("HIT" if (c1 or c2) else "MISS")
+PY
+)
+  rm -f "$f1" "$f2"
+  printf '%s\n' "$verdict" | sed '$d'   # tout sauf la dernière ligne (le verdict)
+  case "$verdict" in
+    *HIT)    ok "Scaleway rapporte des tokens de préfixe en cache — le prompt caching est exploitable."
+             warn "Pour en profiter : retire DISABLE_PROMPT_CACHING=1 et cesse de drop cache_control." ;;
+    *MISS)   warn "Aucun cached_tokens rapporté — pas de cache de tokens exploitable. Garde DISABLE_PROMPT_CACHING=1." ;;
+    *NOUSAGE) bad "Réponse sans bloc 'usage' — impossible de mesurer. Le modèle répond-il ? (voir 'make check')" ;;
+    *)       bad "Sonde illisible."; printf '%s\n' "$verdict" ;;
+  esac
+}
+
 case "${1:-all}" in
   models) step_models ;;
   chat)   step_chat ;;
   tools)  step_tools ;;
   proxy)  step_proxy ;;
+  cache)  step_cache ;;
   all)    step_models && step_chat; step_tools; step_proxy
           hr "Terminé"
           echo "   Si l'étape 3 est en échec, ce modèle ne convient pas à Claude Code." ;;
-  *)      echo "Usage: $0 [all|models|chat|tools|proxy]"; exit 1 ;;
+  *)      echo "Usage: $0 [all|models|chat|tools|proxy|cache]"; exit 1 ;;
 esac
