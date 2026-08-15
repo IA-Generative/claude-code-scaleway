@@ -8,29 +8,44 @@
 model_list:
   # ── Modèle principal ────────────────────────────────────────────────
   # Vérifie l'ID exact avec `make models` avant de compter dessus.
+  # Préfixe hosted_vllm/ (et non openai/) : même protocole OpenAI, mais
+  # LiteLLM ne suppose pas la Responses API — le provider openai/ tente
+  # /v1/responses/input_tokens à chaque count_tokens (404 Scaleway).
   - model_name: glm-5.2
     litellm_params:
-      model: openai/glm-5.2            # préfixe openai/ = protocole du backend
+      model: hosted_vllm/glm-5.2
       api_base: https://api.scaleway.ai/v1
       api_key: os.environ/SCW_SECRET_KEY
     model_info:
       supports_function_calling: true
 
   # ── Alias ───────────────────────────────────────────────────────────
-  # Claude Code réclame des noms de modèles Claude par défaut. Sans ces
-  # alias, tu récupères des erreurs "model not found" sur les tâches de
-  # fond même si --model est correct.
+  # Claude Code réclame des noms de modèles Claude par défaut — y compris
+  # les IDs versionnés pour les tâches de fond. Sans ces alias, tu
+  # récupères des erreurs "model not found" même si --model est correct.
   - model_name: claude-sonnet-4-5
     litellm_params:
-      model: openai/glm-5.2
+      model: hosted_vllm/glm-5.2
+      api_base: https://api.scaleway.ai/v1
+      api_key: os.environ/SCW_SECRET_KEY
+
+  - model_name: claude-sonnet-4-5-20250929
+    litellm_params:
+      model: hosted_vllm/glm-5.2
       api_base: https://api.scaleway.ai/v1
       api_key: os.environ/SCW_SECRET_KEY
 
   # Modèle rapide (résumés, titres de conversation). Bascule-le sur un
-  # modèle moins cher — ex. openai/gpt-oss-120b — pour alléger la facture.
+  # modèle moins cher — ex. hosted_vllm/gpt-oss-120b — pour alléger la facture.
   - model_name: claude-haiku-4-5
     litellm_params:
-      model: openai/glm-5.2
+      model: hosted_vllm/glm-5.2
+      api_base: https://api.scaleway.ai/v1
+      api_key: os.environ/SCW_SECRET_KEY
+
+  - model_name: claude-haiku-4-5-20251001
+    litellm_params:
+      model: hosted_vllm/glm-5.2
       api_base: https://api.scaleway.ai/v1
       api_key: os.environ/SCW_SECRET_KEY
 
