@@ -302,6 +302,28 @@ pointent donc sur `127.0.0.1`.
 `make check` distingue les deux cas — proxy éteint, ou proxy actif mais
 adresse de connexion incorrecte.
 
+### 429 : Claude Code retente tout seul
+
+Observé en conditions réelles pendant une run autonome de nuit qui saturait
+le quota. La chaîne complète :
+
+1. Scaleway renvoie `429 INSUFFICIENT QUOTA` (quota *tokens par minute* du
+   projet dépassé) ;
+2. LiteLLM retente 2 fois de son côté (`LiteLLM Retried: 2 times` dans les
+   logs), puis transmet le 429 au client ;
+3. **Claude Code retente lui-même avec backoff exponentiel** — la session ne
+   meurt pas, elle attend et repart. Aucune action nécessaire.
+
+Dans les logs du proxy, ça produit des rafales de tracebacks 429
+impressionnantes mais bénignes, **entrecoupées de `200 OK`** : ces 200 sont
+le signe que la session avance, juste au ralenti. Ne s'inquiéter que si les
+200 disparaissent complètement pendant une longue période.
+
+Même logique pour les coupures du proxy : un redémarrage (`make down` /
+`make up`, ou bascule venv → Docker) est absorbé par les retries de
+Claude Code comme un 429 de plus — on peut redémarrer le proxy en pleine
+session sans tuer la run.
+
 ---
 
 ## Limites en l'état
