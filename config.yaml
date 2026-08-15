@@ -39,6 +39,11 @@ litellm_settings:
   # thinking...) au lieu de renvoyer une 400. Indispensable ici.
   drop_params: true
 
+  # LiteLLM ≥ 1.9x route les requêtes /v1/messages des modèles `openai/`
+  # vers /v1/responses. Scaleway n'implémente pas cette route (422
+  # "ROUTE NOT SUPPORTED") : on force le pont chat/completions.
+  use_chat_completions_url_for_anthropic_messages: true
+
   # Passe à true pour voir les requêtes traduites dans la console.
   set_verbose: false
 
