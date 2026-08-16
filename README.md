@@ -30,6 +30,7 @@ Claude Code ──/v1/messages (Anthropic)──▶ LiteLLM :4000 ──/chat/co
 - [🔄 Changer de modèle](#-changer-de-modèle)
 - [🦙 Claude Code avec Ollama](#-claude-code-avec-ollama)
 - [🛡️ Pièges Scaleway neutralisés dans la config](#️-pièges-scaleway-neutralisés-dans-la-config)
+- [💾 Cache de tokens](#-cache-de-tokens)
 - [🩺 Dépannage](#-dépannage)
 - [🚧 Limites en l'état](#-limites-en-létat)
 - [📌 Notes & choix de conception](#-notes--choix-de-conception)
@@ -251,6 +252,31 @@ Scaleway plafonne `max_completion_tokens` à 16384 pour glm-5.2 et renvoie un 40
 
 ---
 
+## 💾 Cache de tokens
+
+Deux mécanismes très différents portent le nom de « cache ». Un seul aide une session de code, et il dépend du backend.
+
+**1. Le cache de *réponses* de LiteLLM — inutile ici.** `litellm.cache` (Redis / in-memory / sémantique) met en cache la **réponse complète**, avec une clé qui inclut tous les `messages`. En coding, chaque tour ajoute du contenu → la requête change à chaque appel → le cache exact **ne tombe jamais juste**. Le cache *sémantique* (matching par similarité) renverrait une réponse déjà générée pour un prompt « proche » — dangereux pour un agent. À ne pas activer.
+
+**2. Le cache de *préfixe* (prompt caching) — le bon, mais côté fournisseur.** L'idée : réutiliser le gros préfixe qui ne change pas (system prompt, définitions d'outils, tours précédents) au lieu de le refacturer à chaque tour. LiteLLM ne fait que le **relayer** — il transmet `cache_control` et remonte `cache_read_input_tokens` — mais le cache réel appartient au **backend**. Natif pour Anthropic/Bedrock ; pour un backend OpenAI-compatible comme Scaleway, il faut que l'API renvoie `usage.prompt_tokens_details.cached_tokens`.
+
+**Le mesurer :**
+
+```bash
+make cache-probe
+```
+
+Envoie deux requêtes identiques à gros préfixe (~5k tokens) et affiche les `cached_tokens` :
+
+- **non nuls** → le backend facture le préfixe au tarif cache réduit : retire `DISABLE_PROMPT_CACHING=1` (scripts) et cesse de jeter `cache_control` (`drop_params`) pour en profiter ;
+- **zéro** → aucun cache de tokens exploitable : garde `DISABLE_PROMPT_CACHING=1`.
+
+**État actuel (Scaleway / GLM-5.2)** : la sonde renvoie `prompt_tokens_details: null` et `cached_tokens = 0`, même sur deux requêtes identiques de 5620 tokens — **pas de cache de tokens**. D'où `DISABLE_PROMPT_CACHING=1` côté client et `drop_params: true` côté proxy. Relance `make cache-probe` si tu changes de modèle : chaque modèle Scaleway peut se comporter différemment.
+
+> 🦙 Avec **Ollama**, le prompt caching dépend du backend Ollama (un modèle cloud peut le gérer côté serveur) ; `make cache-probe` cible l'API Scaleway, mais le critère est le même — chercher `cached_tokens` non nul dans l'`usage`.
+
+---
+
 ## 🩺 Dépannage
 
 | Symptôme | Cause / remède |
@@ -347,7 +373,7 @@ Si le proxy venv tient déjà le 4000 en IPv4, le conteneur prend le port en IPv
 
 **Les librairies sont épinglées à cause d'une incompatibilité.** LiteLLM 1.96.2 importe un symbole que FastAPI a supprimé en 0.140.7 : d'où la contrainte `fastapi<0.140.7` dans `requirements.txt` (venv) et l'image Docker épinglée `v1.96.2`. Monter l'une sans l'autre casse le proxy au démarrage — détail dans [Dépannage](#-dépannage).
 
-**Pas de cache de tokens (prompt caching) exploitable.** Ce qui accélère et allège une session de code, c'est le cache de *préfixe* côté fournisseur (réutiliser le system prompt, les définitions d'outils, les tours précédents). LiteLLM ne fait que le **relayer** : il transmet `cache_control` et remonte `cache_read_input_tokens`, mais le cache réel appartient au backend. Pour Anthropic/Bedrock c'est natif ; pour un backend OpenAI-compatible comme Scaleway, il faut que l'API renvoie `usage.prompt_tokens_details.cached_tokens` — ce que `make cache-probe` mesure en envoyant deux requêtes identiques à gros préfixe. Au moment de l'écriture, GLM-5.2 chez Scaleway répond `prompt_tokens_details: null` : aucun token de préfixe facturé au tarif cache, d'où `DISABLE_PROMPT_CACHING=1` côté client et `drop_params: true` (qui jette `cache_control`) côté proxy. Le cache de *réponses* de LiteLLM (Redis/exact ou sémantique) n'aide pas ici : il exige une requête identique — jamais le cas en coding — ou renverrait une réponse périmée pour un prompt « proche ».
+**Pas de cache de tokens exploitable.** GLM-5.2 chez Scaleway ne rapporte aucun token de préfixe en cache, d'où `DISABLE_PROMPT_CACHING=1`. Explication des deux types de cache et mesure reproductible dans [Cache de tokens](#-cache-de-tokens).
 
 ---
 
