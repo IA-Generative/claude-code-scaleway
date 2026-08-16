@@ -28,6 +28,7 @@ Claude Code ──/v1/messages (Anthropic)──▶ LiteLLM :4000 ──/chat/co
 - [✅ Le test qui compte](#-le-test-qui-compte)
 - [🔀 Basculer un projet sur GLM](#-basculer-un-projet-sur-glm)
 - [🔄 Changer de modèle](#-changer-de-modèle)
+- [🦙 Claude Code avec Ollama](#-claude-code-avec-ollama)
 - [🛡️ Pièges Scaleway neutralisés dans la config](#️-pièges-scaleway-neutralisés-dans-la-config)
 - [🩺 Dépannage](#-dépannage)
 - [🚧 Limites en l'état](#-limites-en-létat)
@@ -189,6 +190,40 @@ Tout Scaleway sert des modèles ouverts au même endpoint. Pour en essayer un au
 > Les alias `claude-sonnet-4-5` / `claude-haiku-4-5` **et leurs variantes versionnées** (`claude-sonnet-4-5-20250929`, `claude-haiku-4-5-20251001`) dans `config.yaml` ne sont pas décoratifs : Claude Code réclame ces noms pour ses tâches de fond (résumés, titres de conversation), et retombe sur les IDs versionnés quand une session démarre sans l'environnement complet. Sans eux, tu récupères des erreurs `model not found` même avec un `--model` correct.
 
 Le mapping `claude-haiku-4-5` est un bon endroit pour brancher un modèle moins cher — c'est celui qui encaisse le volume de petites requêtes.
+
+---
+
+## 🦙 Claude Code avec Ollama
+
+[Ollama](https://ollama.com) est une autre porte d'entrée — et plus directe : contrairement à Scaleway, **il expose lui-même un endpoint Anthropic-compatible** (`/v1/messages`). Claude Code lui parle donc en direct, **sans le proxy LiteLLM de ce dépôt** — ce proxy ne sert qu'aux backends purement OpenAI (comme Scaleway) qui, eux, ne savent pas parler Anthropic.
+
+Ollama sait lancer Claude Code déjà câblé sur lui :
+
+```bash
+ollama launch claude
+```
+
+Avec un modèle précis et les permissions désactivées pour une run autonome :
+
+```bash
+ollama launch claude --model kimi-k3:cloud -- --dangerously-skip-permissions
+```
+
+- `--model kimi-k3:cloud` : **Kimi K3**, un modèle très performant, exécuté sur le **moteur d'inférence cloud d'Ollama** (suffixe `:cloud`). ⚠️ **Nécessite du crédit Ollama Cloud** — c'est de l'inférence facturée, pas du local.
+- `--` sépare les arguments d'Ollama de ceux de Claude Code : **tout ce qui suit est transmis tel quel à `claude`** — ici `--dangerously-skip-permissions`, pour ne pas valider chaque commande pendant une run non surveillée.
+
+> 💡 **Local et gratuit** : retire le suffixe `:cloud` pour tourner sur ta machine sans crédit — ex. `ollama launch claude --model qwen3-coder`. À dimensionner selon ta RAM/VRAM.
+
+**Équivalent manuel** (sans le wrapper `launch`), si tu préfères ta commande `claude` habituelle — Ollama doit être installé et lancé :
+
+```bash
+export ANTHROPIC_AUTH_TOKEN=ollama
+export ANTHROPIC_API_KEY=""
+export ANTHROPIC_BASE_URL=http://localhost:11434
+claude --model kimi-k3:cloud
+```
+
+À la différence du montage Scaleway, **aucun `config.yaml`, aucun écrêtage de tokens ni alias de modèles** n'est requis : c'est le middleware Anthropic d'Ollama qui fait la traduction.
 
 ---
 
