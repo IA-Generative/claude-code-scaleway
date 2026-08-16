@@ -34,6 +34,7 @@ Claude Code ──/v1/messages (Anthropic)──▶ LiteLLM :4000 ──/chat/co
 - [🩺 Dépannage](#-dépannage)
 - [🚧 Limites en l'état](#-limites-en-létat)
 - [📌 Notes & choix de conception](#-notes--choix-de-conception)
+- [💬 Feedback et contributions](#-feedback-et-contributions)
 - [📚 Références](#-références)
 
 ### Aide-mémoire `make`
@@ -141,6 +142,8 @@ make vscode DIR=~/dev/mon-projet    # un autre projet
 ```
 
 Le script écrit `.claude/settings.local.json` dans le projet ciblé, puis ouvre une fenêtre normale. **C'est ce fichier qui fait tout le travail** : il ne concerne que ce projet, donc tes autres projets et ton CLI restent sur ton compte Anthropic.
+
+> ⚠️ **Validé en CLI, pas encore en VS Code.** Tout ce qui est décrit ici a été vérifié via le **CLI** (`claude` en terminal). Le script `make vscode` écrit bien le `settings.local.json`, mais le flux complet dans l'éditeur n'a pas été testé de bout en bout dans ce tour. Si tu l'essaies, ton retour est bienvenu — voir [Feedback et contributions](#-feedback-et-contributions).
 
 <details>
 <summary><b><code>--isolated</code>, et pourquoi ce n'est pas le défaut</b></summary>
@@ -382,6 +385,16 @@ Si le proxy venv tient déjà le 4000 en IPv4, le conteneur prend le port en IPv
 - **L'identifiant `glm-5.2`** retenu par défaut suit la convention de nommage Scaleway (`llama-3.3-70b-instruct`, `gpt-oss-120b`…) mais n'a pas été confirmé dans leur documentation publique au moment de l'écriture. `make models` interroge `/v1/models` et donne la liste faisant foi.
 - **Pourquoi LiteLLM et pas `y-router`** — la documentation Scaleway recommande `y-router` pour Claude Code, mais ce dépôt est archivé depuis qu'OpenRouter propose une intégration officielle. LiteLLM est activement maintenu et traduit mieux le tool calling.
 - **Ceci sert à évaluer, pas à remplacer** — Claude Code est conçu pour Claude. Les fonctions avancées (extended thinking, sous-agents, prompt caching) fonctionnent de façon inégale ou pas du tout derrière un autre modèle.
+
+## 💬 Feedback et contributions
+
+Ce dépôt est un **banc d'essai**, pas un produit fini — les retours sont précieux, surtout sur la procédure.
+
+**Ce qui a été validé** : le chemin **CLI** de bout en bout — proxy (venv et Docker), `make check` 5/5, tool calling, sessions interactives et mode `-p`, et une run autonome de nuit sur un vrai projet.
+
+**Ce qui ne l'est pas encore** : l'intégration **VS Code** (`make vscode`, `--isolated`). Le script écrit le `settings.local.json` attendu, mais le flux complet dans l'éditeur reste à confirmer sur le terrain — de même que les modèles Scaleway autres que `glm-5.2`.
+
+Un bug, une étape de la procédure qui coince, un modèle qui se comporte autrement, une amélioration ? **Ouvre une issue ou une PR** sur [`IA-Generative/claude-code-scaleway`](https://github.com/IA-Generative/claude-code-scaleway/issues). Pour un souci d'exécution, précise : la commande lancée, le modèle, si tu es en **venv ou Docker**, et la sortie de `make check` (elle localise l'étape en échec).
 
 ## 📚 Références
 
