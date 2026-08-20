@@ -18,7 +18,10 @@ services:
       - ./custom_callbacks.py:/app/custom_callbacks.py:ro
     command: ["--config", "/app/config.yaml", "--port", "4000"]
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:4000/health/liveliness"]
+      # L'image litellm n'embarque PAS curl -> le healthcheck curl echouait
+      # toujours (conteneur marque "unhealthy" a tort). On utilise le python
+      # du venv, present par definition.
+      test: ["CMD", "/app/.venv/bin/python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:4000/health/liveliness',timeout=3).status==200 else 1)"]
       interval: 30s
       timeout: 5s
       retries: 3
