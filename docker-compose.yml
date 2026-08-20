@@ -11,6 +11,8 @@ services:
     environment:
       SCW_SECRET_KEY: ${SCW_SECRET_KEY:?SCW_SECRET_KEY manquant — voir .env.example}
       PROXY_KEY: ${PROXY_KEY:-sk-local-dev-1234}
+      # Diagnostic : SCW_CAPTURE=1 dumpe les requetes a outils dans docker logs.
+      SCW_CAPTURE: ${SCW_CAPTURE:-}
     volumes:
       - ./config.yaml:/app/config.yaml:ro
       - ./custom_callbacks.py:/app/custom_callbacks.py:ro

@@ -13,7 +13,7 @@ cd "$(dirname "$0")/.." || exit 1
 load_env
 
 SCW_URL="https://api.scaleway.ai/v1"
-MODEL="${MODEL:-glm-5.2}"
+MODEL="${MODEL:-deepseek-v4-flash-0731}"
 PROXY_PORT="${PROXY_PORT:-4000}"
 PROXY_URL="${PROXY_URL:-http://127.0.0.1:$PROXY_PORT}"
 PROXY_KEY="${PROXY_KEY:-sk-local-dev-1234}"

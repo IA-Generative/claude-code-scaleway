@@ -14,7 +14,7 @@ REPO="$PWD"
 . ./scripts/lib.sh
 load_env
 
-MODEL="${MODEL:-glm-5.2}"
+MODEL="${MODEL:-deepseek-v4-flash-0731}"
 PROXY_PORT="${PROXY_PORT:-4000}"
 PROXY_KEY="${PROXY_KEY:-sk-local-dev-1234}"
 PROXY_URL="http://127.0.0.1:$PROXY_PORT"

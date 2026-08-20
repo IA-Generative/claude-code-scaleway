@@ -11,9 +11,9 @@ model_list:
   # Préfixe hosted_vllm/ (et non openai/) : même protocole OpenAI, mais
   # LiteLLM ne suppose pas la Responses API — le provider openai/ tente
   # /v1/responses/input_tokens à chaque count_tokens (404 Scaleway).
-  - model_name: glm-5.2
+  - model_name: deepseek-v4-flash-0731
     litellm_params:
-      model: hosted_vllm/glm-5.2
+      model: hosted_vllm/deepseek-v4-flash-0731
       api_base: https://api.scaleway.ai/v1
       api_key: os.environ/SCW_SECRET_KEY
     model_info:
@@ -25,13 +25,13 @@ model_list:
   # récupères des erreurs "model not found" même si --model est correct.
   - model_name: claude-sonnet-4-5
     litellm_params:
-      model: hosted_vllm/glm-5.2
+      model: hosted_vllm/deepseek-v4-flash-0731
       api_base: https://api.scaleway.ai/v1
       api_key: os.environ/SCW_SECRET_KEY
 
   - model_name: claude-sonnet-4-5-20250929
     litellm_params:
-      model: hosted_vllm/glm-5.2
+      model: hosted_vllm/deepseek-v4-flash-0731
       api_base: https://api.scaleway.ai/v1
       api_key: os.environ/SCW_SECRET_KEY
 
@@ -39,13 +39,13 @@ model_list:
   # modèle moins cher — ex. hosted_vllm/gpt-oss-120b — pour alléger la facture.
   - model_name: claude-haiku-4-5
     litellm_params:
-      model: hosted_vllm/glm-5.2
+      model: hosted_vllm/deepseek-v4-flash-0731
       api_base: https://api.scaleway.ai/v1
       api_key: os.environ/SCW_SECRET_KEY
 
   - model_name: claude-haiku-4-5-20251001
     litellm_params:
-      model: hosted_vllm/glm-5.2
+      model: hosted_vllm/deepseek-v4-flash-0731
       api_base: https://api.scaleway.ai/v1
       api_key: os.environ/SCW_SECRET_KEY
 
@@ -54,9 +54,12 @@ litellm_settings:
   # thinking...) au lieu de renvoyer une 400. Indispensable ici.
   drop_params: true
 
-  # Écrête max_tokens à la limite Scaleway (16384) côté serveur — voir
-  # custom_callbacks.py. Certains appels internes de Claude Code ignorent
-  # CLAUDE_CODE_MAX_OUTPUT_TOKENS et partiraient sinon en 400.
+  # Garde-fous serveur (custom_callbacks.py) : (1) écrête max_tokens à la limite
+  # Scaleway du modèle (deepseek-v4-flash-0731 : 32768) — certains appels
+  # internes de Claude Code ignorent CLAUDE_CODE_MAX_OUTPUT_TOKENS et partiraient
+  # sinon en 400 ; (2) rattrape les tool-calls que DeepSeek V4 émet parfois en
+  # texte (format ｜DSML｜) au lieu d'un appel structuré, et les reconstruit en
+  # vrai tool_use (contournement d'un bug Scaleway — voir le fichier).
   callbacks: custom_callbacks.proxy_handler_instance
 
   # LiteLLM ≥ 1.9x route les requêtes /v1/messages des modèles `openai/`

@@ -6,7 +6,7 @@ export
 
 PROXY_PORT ?= 4000
 PROXY_KEY  ?= sk-local-dev-1234
-MODEL      ?= glm-5.2
+MODEL      ?= deepseek-v4-flash-0731
 
 # LiteLLM vit dans un venv dedie : versions figees par requirements.txt.
 VENV    := .venv
