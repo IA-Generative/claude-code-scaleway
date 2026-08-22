@@ -28,10 +28,23 @@ import uuid
 
 from litellm.integrations.custom_logger import CustomLogger
 
-# Garde-fou serveur, independant du client par conception. Defaut = limite
-# Scaleway du modele servi (deepseek-v4-flash-0731 : 32768) ; surchargeable via
-# SCW_MAX_COMPLETION_TOKENS (ex. si le modele ou le plafond change) sans code.
-SCW_MAX_COMPLETION_TOKENS = int(os.getenv("SCW_MAX_COMPLETION_TOKENS", "32768"))
+# Plafond de sortie par modele (Scaleway renvoie un 400 au-dela). Le defaut
+# generique est surchargeable via SCW_MAX_COMPLETION_TOKENS ; les modeles connus
+# ont leur propre plafond car ils different (deepseek-v4-flash-0731 : 32768 ;
+# glm-5.2 : 16384). Garde-fou serveur, independant du client par conception.
+_DEFAULT_CAP = int(os.getenv("SCW_MAX_COMPLETION_TOKENS", "32768"))
+_MODEL_CAPS = {"glm-5.2": 16384, "deepseek-v4-flash-0731": 32768}
+
+
+def _cap_for(model):
+    """Plafond de sortie pour un modele (accepte alias, prefixe hosted_vllm/…)."""
+    if not model:
+        return _DEFAULT_CAP
+    name = str(model).split("/")[-1]
+    for known, cap in _MODEL_CAPS.items():
+        if known in name:
+            return cap
+    return _DEFAULT_CAP
 
 # ── Rattrapage DSML ─────────────────────────────────────────────────────────
 # DeepSeek est INCOHERENT sur le format : le marqueur ｜DSML｜ (｜ = U+FF5C,
@@ -111,10 +124,11 @@ def _tool_use_sse_frames(calls, message_start_raw, usage):
 class ScalewayGuards(CustomLogger):
     # ── 1. Ecretage max_tokens + capture optionnelle ────────────────────────
     async def async_pre_call_hook(self, user_api_key_dict, cache, data, call_type):
+        cap = _cap_for(data.get("model"))
         for key in ("max_tokens", "max_completion_tokens"):
             value = data.get(key)
-            if isinstance(value, int) and value > SCW_MAX_COMPLETION_TOKENS:
-                data[key] = SCW_MAX_COMPLETION_TOKENS
+            if isinstance(value, int) and value > cap:
+                data[key] = cap
         if os.getenv("SCW_CAPTURE") and data.get("tools"):
             try:
                 safe = {k: v for k, v in data.items()

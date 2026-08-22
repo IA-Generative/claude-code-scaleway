@@ -19,6 +19,19 @@ model_list:
     model_info:
       supports_function_calling: true
 
+  # ── Modèle alternatif : GLM-5.2 ─────────────────────────────────────
+  # Servi en parallèle de DeepSeek : `--model glm-5.2` y accède directement.
+  # GLM n'a pas besoin du rattrapage de tool-calls (contrairement à DeepSeek) ;
+  # son plafond de sortie est 16384 (vs 32768) — le garde-fou serveur écrête
+  # par modèle (voir custom_callbacks.py), donc pas de 400 côté GLM.
+  - model_name: glm-5.2
+    litellm_params:
+      model: hosted_vllm/glm-5.2
+      api_base: https://api.scaleway.ai/v1
+      api_key: os.environ/SCW_SECRET_KEY
+    model_info:
+      supports_function_calling: true
+
   # ── Alias ───────────────────────────────────────────────────────────
   # Claude Code réclame des noms de modèles Claude par défaut — y compris
   # les IDs versionnés pour les tâches de fond. Sans ces alias, tu
@@ -55,7 +68,7 @@ litellm_settings:
   drop_params: true
 
   # Garde-fous serveur (custom_callbacks.py) : (1) écrête max_tokens à la limite
-  # Scaleway du modèle (deepseek-v4-flash-0731 : 32768) — certains appels
+  # Scaleway par modèle (deepseek 32768, glm-5.2 16384) — certains appels
   # internes de Claude Code ignorent CLAUDE_CODE_MAX_OUTPUT_TOKENS et partiraient
   # sinon en 400 ; (2) rattrape les tool-calls que DeepSeek V4 émet parfois en
   # texte (format ｜DSML｜) au lieu d'un appel structuré, et les reconstruit en
